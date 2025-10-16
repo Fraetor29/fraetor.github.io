@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Click to verify if you are AI</title>
+<style>
+  :root{
+    /* Responsive tweakables */
+    --danger-dx: clamp(160px, 10vw, 280px);
+    --danger-dy: clamp(120px, 8vh, 220px);
+
+    /* Stronger knockback so it visibly flies away */
+    --impulse-min: 650;   /* px */
+    --impulse-max: 1200;  /* px */
+
+    /* Bat scales to screen height so it “fits” the arena */
+    --bat-height: min(38vh, 520px);
+    --swing-duration: 260ms;
+
+    --bg: radial-gradient(1400px 1000px at 50% 50%, #1f2937 0%, #0b1020 60%, #060913 100%);
+  }
+
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    min-height: 100dvh; /* better on mobile */
+    background: var(--bg);
+    font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    color: #fff;
+    overflow: hidden; /* one-screen arena */
+  }
+
+  .stage {
+    position: relative;
+    width: 100%;
+    height: 100dvh; /* “match the screen” */
+  }
+
+  /* Button holder we can push around with transforms */
+  .btn-wrap {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%,-50%);
+    will-change: transform;
+    z-index: 3;
+  }
+
+  #verifyBtn {
+    font-size: clamp(22px, 3.5vw, 32px);
+    padding: clamp(18px, 2.5vh, 26px) clamp(28px, 3vw, 40px);
+    border-radius: 16px;
+    border: 0;
+    background: linear-gradient(180deg, #22c55e, #16a34a);
+    color: #041007;
+    font-weight: 800;
+    letter-spacing: .3px;
+    box-shadow:
+      0 12px 36px rgba(0,0,0,.35),
+      inset 0 2px 0 rgba(255,255,255,.25);
+    transition: filter .2s ease;
+    user-select: none;
+  }
+  #verifyBtn:active { filter: brightness(0.96); }
+
+  /* Bat (your slim SVG) */
+  #bat {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    height: var(--bat-height);
+    width: auto;
+    transform-origin: 50% 92%; /* near the handle end */
+    transform: translate(-50%,-50%) rotate(0deg);
+    pointer-events: none;
+    z-index: 4;
+    opacity: 0;
+    filter: drop-shadow(0 12px 24px rgba(0,0,0,.45));
+  }
+
+  @keyframes swing {
+    0%   { transform: translate(var(--tx), var(--ty)) rotate(calc(var(--angle) - 30deg)); opacity: 1; }
+    60%  { transform: translate(var(--tx), var(--ty)) rotate(calc(var(--angle) + 35deg)); opacity: 1; }
+    100% { transform: translate(var(--tx), var(--ty)) rotate(calc(var(--angle) + 8deg));  opacity: .85; }
+  }
+  .swinging { animation: swing var(--swing-duration) cubic-bezier(.3,.9,.2,1.25); }
+
+  /* After-hit click shield */
+  #shield {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 6;
+  }
+  #shield.active { pointer-events: all; }
+
+  /* Success modal */
+  .modal {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: rgba(0,0,0,.45);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .25s ease;
+    z-index: 10;
+  }
+  .modal.show {
+    opacity: 1;
+    pointer-events: all;
+  }
+  .card {
+    background: #0f172a;
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 18px;
+    padding: 22px 26px;
+    box-shadow: 0 20px 50px rgba(0,0,0,.5);
+    text-align: center;
+    width: min(420px, 90vw);
+  }
+  .icon {
+    width: 72px;
+    height: 72px;
+    margin: 6px auto 12px;
+    display: block;
+  }
+  .title {
+    font-size: clamp(20px, 3.6vw, 26px);
+    font-weight: 800;
+    margin: 0 0 6px;
+  }
+  .subtitle {
+    font-size: 14px;
+    color: #cbd5e1;
+    margin: 0 0 14px;
+  }
+  .okbtn {
+    margin-top: 8px;
+    background: #22c55e;
+    color: #052e12;
+    border: 0;
+    border-radius: 12px;
+    padding: 10px 16px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+  <div class="stage" id="stage">
+    <div class="btn-wrap" id="btnWrap">
+      <button id="verifyBtn">Click to verify if you are AI</button>
+    </div>
+
+    <!-- Bat (your resized slim SVG) -->
+    <div id="bat" aria-hidden="true">
+      <!-- your 189×810 SVG -->
+      <svg width="189" height="810" viewBox="0 0 189 810" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <g filter="url(#filter0_i_251_2)">
+          <g filter="url(#filter1_i_251_2)">
+            <path d="M31.1023 377.293H157.977L182.243 715.752C185.894 766.677 145.564 810.001 94.5087 810.001C43.4465 810.001 3.11482 766.666 6.77563 715.736L31.1023 377.293Z" fill="#FFA246"/>
+          </g>
+          <path d="M153.323 382.293L177.256 716.109C180.699 764.139 142.662 805.001 94.5088 805.001C46.3492 805.001 8.30998 764.129 11.7627 716.094L35.7559 382.293H153.323Z" stroke="black" stroke-width="10"/>
+          <path d="M48.322 397.457L21.9477 724.938C19.8244 751.301 38.1682 774.956 64.2344 779.47C64.2344 779.47 46.4268 762.16 43.5112 735.199C37.6248 680.768 48.322 397.457 48.322 397.457Z" fill="white"/>
+          <path d="M93.7817 311.715C106.469 311.734 119.007 314.39 128.627 319.444C138.226 324.487 144.442 331.612 145.882 340.544C147.233 348.919 149.061 360.521 150.552 370.036C151.229 374.353 151.835 378.239 152.296 381.195H36.9204C37.4627 378.335 38.1545 374.631 38.8892 370.5C40.5625 361.09 42.4971 349.334 43.4712 340.282C44.4321 331.354 50.1958 324.311 59.4351 319.329C68.7283 314.318 81.0879 311.696 93.7817 311.715Z" fill="#727272" stroke="black" stroke-width="10"/>
+          <path d="M25.1328 5H163.867C173.932 5.00012 182.091 13.159 182.091 23.2236C182.091 33.2884 173.932 41.4481 163.867 41.4482H25.1328C15.0681 41.448 6.90918 33.2883 6.90918 23.2236C6.90937 13.1591 15.0683 5.0002 25.1328 5Z" fill="#727272" stroke="black" stroke-width="10"/>
+          <path d="M144.255 41.3828C143.934 42.7163 143.571 44.2453 143.177 45.9541C141.596 52.8048 139.491 62.5511 137.387 74.1602C133.184 97.3429 128.954 128.111 128.954 158.147C128.954 188.073 133.162 233.725 137.337 271.706C139.429 290.737 141.52 307.912 143.089 320.328C143.852 326.371 144.492 331.289 144.948 334.746H44.1543C44.5756 331.287 45.1694 326.352 45.8779 320.281C47.3267 307.866 49.2583 290.694 51.1904 271.665C55.047 233.683 58.9316 188.05 58.9316 158.147C58.9316 128.142 55.0282 97.3986 51.1475 74.2256C49.2044 62.623 47.261 52.8827 45.8018 46.0361C45.43 44.292 45.0892 42.7352 44.7881 41.3828H144.255Z" fill="#FF0000" stroke="black" stroke-width="10"/>
+        </g>
+        <defs>
+          <filter id="filter0_i_251_2" x="-2.09082" y="0" width="189.182" height="814.002" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+            <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+            <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+            <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+            <feOffset dx="-38" dy="4"/>
+            <feGaussianBlur stdDeviation="2"/>
+            <feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
+            <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0"/>
+            <feBlend mode="normal" in2="shape" result="effect1_innerShadow_251_2"/>
+          </filter>
+          <filter id="filter1_i_251_2" x="6.54492" y="377.293" width="175.928" height="436.709" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+            <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+            <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+            <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+            <feOffset dy="4"/>
+            <feGaussianBlur stdDeviation="2"/>
+            <feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
+            <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0"/>
+            <feBlend mode="normal" in2="shape" result="effect1_innerShadow_251_2"/>
+          </filter>
+        </defs>
+      </svg>
+    </div>
+
+    <div id="shield"></div>
+  </div>
+
+  <!-- Success modal -->
+  <div class="modal" id="successModal" role="dialog" aria-modal="true" aria-labelledby="t1">
+    <div class="card">
+      <!-- cute check badge icon -->
+      <svg class="icon" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <circle cx="32" cy="32" r="30" fill="#22c55e"/>
+        <circle cx="32" cy="32" r="30" fill="none" stroke="rgba(0,0,0,.25)" stroke-width="2"/>
+        <path d="M20 33 l8 8 l16 -16" fill="none" stroke="#052e12" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <h2 class="title" id="t1">Human verified!</h2>
+      <p class="subtitle">Ohhh… so you’re <b>not</b> an AI. Respect ✌️</p>
+      <button class="okbtn" id="okBtn">OK</button>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const btnWrap = document.getElementById('btnWrap');
+  const btn = document.getElementById('verifyBtn');
+  const bat = document.getElementById('bat');
+  const shield = document.getElementById('shield');
+
+  const modal = document.getElementById('successModal');
+  const okBtn = document.getElementById('okBtn');
+
+  const state = {
+    // button physics (we push the button, not the OS cursor)
+    x: 0, y: 0,   // offset from screen center
+    vx: 0, vy: 0,
+    lastHit: 0,
+    hitCooldownMs: 220
+  };
+
+  function getButtonRect(){
+    return btn.getBoundingClientRect(); // includes transforms
+  }
+
+  function placeButton(){
+    btnWrap.style.transform = `translate(calc(-50% + ${state.x}px), calc(-50% + ${state.y}px))`;
+  }
+
+  // Stronger push away from pointer
+  function pushButtonAway(fromX, fromY){
+    const now = performance.now();
+    if (now - state.lastHit < state.hitCooldownMs) return;
+    state.lastHit = now;
+
+    const rect = getButtonRect();
+    const cx = rect.left + rect.width/2;
+    const cy = rect.top  + rect.height/2;
+
+    let dx = cx - fromX;
+    let dy = cy - fromY;
+    const len = Math.hypot(dx, dy) || 1;
+    dx /= len; dy /= len;
+
+    // deeper inside zone => closer to center => stronger
+    const depth = Math.min(1, distanceToRect(fromX, fromY, rect) / Math.max(rect.width, rect.height));
+    const minP = cssPx('--impulse-min');
+    const maxP = cssPx('--impulse-max');
+    const power = lerp(maxP, minP, depth) * (0.95 + Math.random()*0.1);
+
+    state.vx += dx * power;
+    state.vy += dy * power;
+
+    swingBatToward(fromX, fromY);
+
+    // prevent cheeky clicks during the hit
+    shield.classList.add('active');
+    setTimeout(() => shield.classList.remove('active'), 220);
+  }
+
+  function swingBatToward(x, y){
+    const rect = getButtonRect();
+    const cx = rect.left + rect.width/2;
+    const cy = rect.top  + rect.height/2;
+
+    const angleRad = Math.atan2(y - cy, x - cx);
+    const angleDeg = angleRad * 180/Math.PI;
+
+    const tx = (cx - window.innerWidth/2) + 'px';
+    const ty = (cy - window.innerHeight/2) + 'px';
+
+    bat.style.setProperty('--angle', angleDeg + 'deg');
+    bat.style.setProperty('--tx', `calc(-50% + ${tx})`);
+    bat.style.setProperty('--ty', `calc(-50% + ${ty})`);
+
+    bat.classList.remove('swinging');
+    void bat.offsetWidth; // restart anim
+    bat.classList.add('swinging');
+
+    setTimeout(() => bat.classList.remove('swinging'),
+      parseTime(getComputedStyle(document.documentElement).getPropertyValue('--swing-duration')));
+  }
+
+  function inDangerZone(px, py){
+    const rect = getButtonRect();
+    const dx = cssPx('--danger-dx');
+    const dy = cssPx('--danger-dy');
+    return (
+      px >= rect.left - dx &&
+      px <= rect.right + dx &&
+      py >= rect.top  - dy &&
+      py <= rect.bottom + dy
+    );
+  }
+
+  // Pointer tracking
+  window.addEventListener('mousemove', (e) => {
+    if (inDangerZone(e.clientX, e.clientY)) pushButtonAway(e.clientX, e.clientY);
+  }, { passive: true });
+
+  window.addEventListener('touchstart', (e) => {
+    const t = e.touches[0]; if (!t) return;
+    if (inDangerZone(t.clientX, t.clientY)) pushButtonAway(t.clientX, t.clientY);
+  }, { passive: true });
+
+  window.addEventListener('touchmove', (e) => {
+    const t = e.touches[0]; if (!t) return;
+    if (inDangerZone(t.clientX, t.clientY)) pushButtonAway(t.clientX, t.clientY);
+  }, { passive: true });
+
+  // Physics loop (button glide & bounds)
+  const friction = 0.90;
+  const springToCenter = 0.0025; // gentle pull back to center
+  function tick(){
+    state.vx += (-state.x) * springToCenter;
+    state.vy += (-state.y) * springToCenter;
+
+    state.vx *= friction;
+    state.vy *= friction;
+
+    state.x += state.vx * 0.8;
+    state.y += state.vy * 0.8;
+
+    // Keep inside viewport (with padding)
+    const pad = 40;
+    const rect = btn.getBoundingClientRect();
+    const halfW = rect.width/2;
+    const halfH = rect.height/2;
+
+    const maxX = (window.innerWidth/2)  - halfW - pad;
+    const maxY = (window.innerHeight/2) - halfH - pad;
+
+    if (state.x >  maxX) { state.x =  maxX; state.vx *= -0.35; }
+    if (state.x < -maxX) { state.x = -maxX; state.vx *= -0.35; }
+    if (state.y >  maxY) { state.y =  maxY; state.vy *= -0.35; }
+    if (state.y < -maxY) { state.y = -maxY; state.vy *= -0.35; }
+
+    placeButton();
+    requestAnimationFrame(tick);
+  }
+  placeButton();
+  requestAnimationFrame(tick);
+
+  // SUCCESS: show the modal (message + icon)
+  btn.addEventListener('click', () => {
+    modal.classList.add('show');
+  });
+  okBtn.addEventListener('click', () => modal.classList.remove('show'));
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) modal.classList.remove('show');
+  });
+
+  // Helpers
+  function cssPx(varName){
+    const v = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+    return parseFloat(v.replace('px','')) || 0;
+  }
+  function parseTime(s){
+    s = (s||'').trim();
+    if (s.endsWith('ms')) return parseFloat(s);
+    if (s.endsWith('s'))  return parseFloat(s) * 1000;
+    return 260;
+  }
+  function lerp(a, b, t){ return a + (b - a) * t; }
+  function distanceToRect(x, y, rect){
+    const cx = rect.left + rect.width/2;
+    const cy = rect.top  + rect.height/2;
+    return Math.hypot(x - cx, y - cy);
+  }
+})();
+</script>
+</body>
+</html>
